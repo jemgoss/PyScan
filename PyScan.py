@@ -7,7 +7,13 @@ import sys
 import os
 import time
 
-SCAN_REQUEST = """<?xml version="1.0"?>
+RESOLUTION = 300
+COMPRESSION_QFACTOR = 35
+
+scanToDir = os.getcwd()
+
+class HpScan:
+    _SCAN_REQUEST = """<?xml version="1.0"?>
 <scan:ScanJob xmlns:scan="http://www.hp.com/schemas/imaging/con/cnx/scan/2008/08/19" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:fw="http://www.hp.com/schemas/imaging/con/firewall/2011/01/05">
   <scan:XResolution>{XResolution}</scan:XResolution>
   <scan:YResolution>{YResolution}</scan:YResolution>
@@ -16,7 +22,7 @@ SCAN_REQUEST = """<?xml version="1.0"?>
   <scan:Width>{Width}</scan:Width>
   <scan:Height>{Height}</scan:Height>
   <scan:Format>Jpeg</scan:Format>
-  <scan:CompressionQFactor>35</scan:CompressionQFactor>
+  <scan:CompressionQFactor>{CompressionQFactor}</scan:CompressionQFactor>
   <scan:ColorSpace>Color</scan:ColorSpace>
   <scan:BitDepth>8</scan:BitDepth>
   <scan:InputSource>Platen</scan:InputSource>
@@ -31,56 +37,54 @@ SCAN_REQUEST = """<?xml version="1.0"?>
   <scan:ContentType>Photo</scan:ContentType>
 </scan:ScanJob>"""
 
-CANCEL_REQUEST = """<?xml version="1.0" encoding="UTF-8"?>
+    _CANCEL_REQUEST = """<?xml version="1.0" encoding="UTF-8"?>
 <Job xmlns="http://www.hp.com/schemas/imaging/con/ledm/jobs/2009/04/30" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.hp.com/schemas/imaging/con/ledm/jobs/2009/04/30 Jobs.xsd">"
 <JobUrl>{job_url}</JobUrl>
 <JobState>Canceled</JobState>
 </Job>"""
 
-scanToDir = os.getcwd()
-
-class HpScan:
     def __init__(self, host, port):
         self._host = host
         self._port = port
         self._http_conn = http.client.HTTPConnection(self._host, self._port)
 
-    def get_scannerState(self):
+    def _get_scannerState(self):
         """ Return the scanner state. """
-        print("GET", "/Scan/Status")
+        #print("GET", "/Scan/Status")
         self._http_conn.request("GET", "/Scan/Status")
         with self._http_conn.getresponse() as http_response:
-            print(http_response.status, http_response.reason)
+            #print(http_response.status, http_response.reason)
             if http_response.status != HTTPStatus.OK:
                 raise Exception("Error sending Status request to scanner: " + http_response.reason)
             xml_document = xml.dom.minidom.parseString(http_response.read())
             return xml_document.getElementsByTagName("ScannerState")[0].firstChild.data
 
-    def post_scan_job(self, width, height):
-        print("POST", "/Scan/Jobs")
+    def _post_scan_job(self, width, height):
+        #print("POST", "/Scan/Jobs")
         self._http_conn.request("POST",
                                 "/Scan/Jobs",
                                 headers={ "Content-Type" : "text/xml" },
-                                body=SCAN_REQUEST.format(
-                                    XResolution=200,
-                                    YResolution=200,
+                                body=self._SCAN_REQUEST.format(
+                                    XResolution=RESOLUTION,
+                                    YResolution=RESOLUTION,
                                     XStart=0,
                                     YStart=0,
                                     Width=width,
-                                    Height=height))
+                                    Height=height,
+                                    CompressionQFactor=COMPRESSION_QFACTOR))
         with self._http_conn.getresponse() as http_response:
-            print(http_response.status, http_response.reason)
+            #print(http_response.status, http_response.reason)
             if http_response.status != HTTPStatus.CREATED:
                 raise Exception("Error sending Scan job request to scanner: " + http_response.reason)
             http_response.read() # should be no content
             return http_response.getheader("Location")
 
-    def get_jobState(self, job_url):
+    def _get_jobState(self, job_url):
         """ Return the job state. """
-        print("GET", job_url)
+        #print("GET", job_url)
         self._http_conn.request("GET", job_url)
         with self._http_conn.getresponse() as http_response:
-            print(http_response.status, http_response.reason)
+            #print(http_response.status, http_response.reason)
             if http_response.status != HTTPStatus.OK:
                 raise Exception("Error sending Job state request to scanner: " + http_response.reason)
             xml_document = xml.dom.minidom.parseString(http_response.read())
@@ -95,40 +99,42 @@ class HpScan:
                     elem = psp[0]
             return jobState, elem
 
-    def get_upload(self, binaryURL, filename):
-        print("GET", binaryURL)
+    def _save_image(self, binaryURL, filename):
+        #print("GET", binaryURL)
         self._http_conn.request("GET", binaryURL)
         with self._http_conn.getresponse() as http_response:
-            print(http_response.status, http_response.reason)
+            #print(http_response.status, http_response.reason)
             with open(filename, "wb") as f:
                 f.write(http_response.read())
-                print("Saved image to:", filename)
 
-    def get_scan(self, width, height, filename):
+    def do_scan(self, width, height, filename):
         print("Scanning:", width, height, filename)
 
         # Wait for our scanner to become idle
+        print("Waiting for scanner to become ready...")
         while True:
-            state = self.get_scannerState()
+            state = self._get_scannerState()
             if state == "Idle":
                 break
-            print("Current state of the scanner: " + state)
+            #print("Current state of the scanner: " + state)
             time.sleep(5)
 
-        job_url = self.post_scan_job(width, height)
-        print("job_url", job_url)
+        print("Scanning...")
+        job_url = self._post_scan_job(width, height)
+        #print("job_url", job_url)
         self._job_url = job_url # in case we want to query or cancel it later
 
         # Wait for the scan job to complete
+        print("Waiting for scan job to complete...")
         imageWidth = None
         imageHeight = None
         binaryURL = None
         while True:
-            state, elem = self.get_jobState(job_url)
+            state, elem = self._get_jobState(job_url)
             pageState = None
             if elem:
                 pageState = elem.getElementsByTagName("PageState")[0].firstChild.data
-            print("Job state:", state, ", PageState:", pageState)
+            #print("Job state:", state, ", PageState:", pageState)
             if state == "Canceled" or state == "Completed":
                 break
             if state == "Processing":
@@ -136,24 +142,26 @@ class HpScan:
                     imageWidth = int(elem.getElementsByTagName("ImageWidth")[0].firstChild.data)
                     imageHeight = int(elem.getElementsByTagName("ImageHeight")[0].firstChild.data)
                     binaryURL = elem.getElementsByTagName("BinaryURL")[0].firstChild.data
-                    print("imageWidth:", imageWidth)
-                    print("imageHeight:", imageHeight)
-                    print("binaryURL:", binaryURL)
+                    #print("imageWidth:", imageWidth)
+                    #print("imageHeight:", imageHeight)
+                    #print("binaryURL:", binaryURL)
                     break
             time.sleep(5)
 
         if binaryURL:
-            self.get_upload(binaryURL, filename)
+            print("Saving image to {}...".format(filename))
+            self._save_image(binaryURL, filename)
 
             while True:
-                state, elem = self.get_jobState(job_url)
+                state, elem = self._get_jobState(job_url)
                 pageState = None
                 if elem:
                     pageState = elem.getElementsByTagName("PageState")[0].firstChild.data
-                print("Job state:", state, ", PageState:", pageState)
+                #print("Job state:", state, ", PageState:", pageState)
                 if state == "Canceled" or state == "Completed":
                     break
                 time.sleep(5)
+            print("Done")
 
     def cancel_scan(self):
         if self._job_url == "":
@@ -161,7 +169,7 @@ class HpScan:
         self._http_conn.request("PUT",
                                 "/Scan/Jobs",
                                 headers={ "Content-Type" : "text/xml" },
-                                body=CANCEL_REQUEST.format(
+                                body=self._CANCEL_REQUEST.format(
                                     job_url=self._job_url))
         with self._http_conn.getresponse() as http_response:
             print(http_response.status, http_response.reason)
@@ -182,78 +190,57 @@ def get_filename():
         raise Exception("File already exists: " + fn)
     return fn
 
-def scan_5x3p5():
-    scan.get_scan(1500, 1050, get_filename())
-
-def scan_6x4():
-    scan.get_scan(1800, 1200, get_filename())
-
-def scan_7x5():
-    scan.get_scan(2100, 1500, get_filename())
-
-def scan_3p5x5():
-    scan.get_scan(1050, 1500, get_filename())
-
-def scan_4x6():
-    scan.get_scan(1200, 1800, get_filename())
-
-def scan_5x7():
-    scan.get_scan(1500, 2100, get_filename())
-
 def runGraphical():
     global filename_entry
     root = tk.Tk()
     root.title("Scan")
 
-    row = tk.Frame(root)
-    lab = tk.Label(row, width=15, text="Filename", anchor='w')
-    filename_entry = tk.Entry(row)
-    row.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
-    lab.pack(side=tk.LEFT)
-    filename_entry.pack(side=tk.RIGHT, expand=tk.YES, fill=tk.X)
-    
+    tk.Label(root, text="Filename:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+    filename_entry = tk.Entry(root)
+    filename_entry.grid(row=0, column=1, columnspan=2, sticky=tk.W, padx=5, pady=5)
+
     tk.Label(
         root,
-        text="Landscape:").pack(side=tk.LEFT)
+        text="Landscape:").grid(row=1, column=0, padx=5, pady=5)
 
     tk.Button(
         root,
         text="Scan 5x3.5",
-        command=scan_5x3p5).pack(side=tk.LEFT, padx=5, pady=5)
+        command=lambda: scan.do_scan(1500, 1050, get_filename())).grid(row=1, column=1, padx=5, pady=5)
 
     tk.Button(
         root,
         text="Scan 6x4",
-        command=scan_6x4).pack(side=tk.LEFT, padx=5, pady=5)
+        command=lambda: scan.do_scan(1800, 1200, get_filename())).grid(row=1, column=2, padx=5, pady=5)
 
     tk.Button(
         root,
         text="Scan 7x5",
-        command=scan_7x5).pack(side=tk.LEFT, padx=5, pady=5)
+        command=lambda: scan.do_scan(2100, 1500, get_filename())).grid(row=1, column=3, padx=5, pady=5)
 
     tk.Label(
         root,
-        text="Portrait:").pack(side=tk.LEFT)
+        text="Portrait:").grid(row=2, column=0, padx=5, pady=5)
 
     tk.Button(
         root,
         text="Scan 3.5x5",
-        command=scan_3p5x5).pack(side=tk.LEFT, padx=5, pady=5)
-
+        command=lambda: scan.do_scan(1050, 1500, get_filename())).grid(row=2, column=1, padx=5, pady=5)
+    
     tk.Button(
         root,
         text="Scan 4x6",
-        command=scan_4x6).pack(side=tk.LEFT, padx=5, pady=5)
+        command=lambda: scan.do_scan(1200, 1800, get_filename())).grid(row=2, column=2, padx=5, pady=5)
 
     tk.Button(
         root,
         text="Scan 5x7",
-        command=scan_5x7).pack(side=tk.LEFT, padx=5, pady=5)
+        command=lambda: scan.do_scan(1500, 2100, get_filename())).grid(row=2, column=3, padx=5, pady=5)
 
     tk.Button(
         root,
         text='Quit',
-        command=root.quit).pack(side=tk.RIGHT, padx=5, pady=5) # root.destroy
+        command=root.quit).grid(row=3, column=0, padx=5, pady=5) # root.destroy
 
     root.mainloop()
 
