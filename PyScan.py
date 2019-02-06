@@ -109,6 +109,7 @@ class HpScan:
 
     def do_scan(self, width, height, filename):
         print("Scanning:", width, height, filename)
+        return
 
         # Wait for our scanner to become idle
         print("Waiting for scanner to become ready...")
@@ -190,57 +191,39 @@ def get_filename():
         raise Exception("File already exists: " + fn)
     return fn
 
+class Callback:
+    def __init__(self, size):
+        self.size = size
+    def fn(self):
+        dims = self.size.split("x")
+        width = int(float(dims[0]) * 300)
+        height = int(float(dims[1]) * 300)
+        scan.do_scan(width, height, get_filename())
+
 def runGraphical():
     global filename_entry
     root = tk.Tk()
     root.title("Scan")
 
     tk.Label(root, text="Filename:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
-    filename_entry = tk.Entry(root)
+    filename_entry = tk.Entry(root, width=12)
     filename_entry.grid(row=0, column=1, columnspan=2, sticky=tk.W, padx=5, pady=5)
 
-    tk.Label(
-        root,
-        text="Landscape:").grid(row=1, column=0, padx=5, pady=5)
+    tk.Label(root, text="Landscape:").grid(row=1, column=0, sticky=tk.E, padx=5, pady=5)
+    tk.Label(root, text="Portrait:").grid(row=2, column=0, sticky=tk.E, padx=5, pady=5)
+    tk.Label(root, text="Custom size:").grid(row=3, column=0, sticky=tk.E, padx=5, pady=5)
 
-    tk.Button(
-        root,
-        text="Scan 5x3.5",
-        command=lambda: scan.do_scan(1500, 1050, get_filename())).grid(row=1, column=1, padx=5, pady=5)
+    for row, sizes in enumerate([
+        ["5 x 3.5", "6 x 4", "7 x 5"],
+        ["3.5 x 5", "4 x 6", "5 x 7"]]):
+        for col, size in enumerate(sizes):
+            tk.Button(root, text=size, command=Callback(size).fn).grid(row=row+1, column=col+1, padx=5, pady=5)
+    custom = tk.Entry(root, width=8)
+    custom.insert(0, "2 x 3")
+    custom.grid(row=3, column=1, padx=5, pady=5)
+    tk.Button(root, text="Scan", command=lambda: Callback(custom.get()).fn()).grid(row=3, column=2, padx=5, pady=5)
 
-    tk.Button(
-        root,
-        text="Scan 6x4",
-        command=lambda: scan.do_scan(1800, 1200, get_filename())).grid(row=1, column=2, padx=5, pady=5)
-
-    tk.Button(
-        root,
-        text="Scan 7x5",
-        command=lambda: scan.do_scan(2100, 1500, get_filename())).grid(row=1, column=3, padx=5, pady=5)
-
-    tk.Label(
-        root,
-        text="Portrait:").grid(row=2, column=0, padx=5, pady=5)
-
-    tk.Button(
-        root,
-        text="Scan 3.5x5",
-        command=lambda: scan.do_scan(1050, 1500, get_filename())).grid(row=2, column=1, padx=5, pady=5)
-    
-    tk.Button(
-        root,
-        text="Scan 4x6",
-        command=lambda: scan.do_scan(1200, 1800, get_filename())).grid(row=2, column=2, padx=5, pady=5)
-
-    tk.Button(
-        root,
-        text="Scan 5x7",
-        command=lambda: scan.do_scan(1500, 2100, get_filename())).grid(row=2, column=3, padx=5, pady=5)
-
-    tk.Button(
-        root,
-        text='Quit',
-        command=root.quit).grid(row=3, column=0, padx=5, pady=5) # root.destroy
+    tk.Button(root, text='Quit', command=root.quit).grid(row=4, column=0, padx=5, pady=5)
 
     root.mainloop()
 
