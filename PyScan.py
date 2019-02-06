@@ -109,7 +109,6 @@ class HpScan:
 
     def do_scan(self, width, height, filename):
         print("Scanning:", width, height, filename)
-        return
 
         # Wait for our scanner to become idle
         print("Waiting for scanner to become ready...")
@@ -205,7 +204,7 @@ def runGraphical():
     root = tk.Tk()
     root.title("Scan")
 
-    tk.Label(root, text="Filename:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+    tk.Label(root, text="Filename:").grid(row=0, column=0, sticky=tk.E, padx=5, pady=5)
     filename_entry = tk.Entry(root, width=12)
     filename_entry.grid(row=0, column=1, columnspan=2, sticky=tk.W, padx=5, pady=5)
 
