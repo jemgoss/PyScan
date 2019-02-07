@@ -10,8 +10,6 @@ import time
 RESOLUTION = 300
 COMPRESSION_QFACTOR = 35
 
-scanToDir = os.getcwd()
-
 class HpScan:
     _SCAN_REQUEST = """<?xml version="1.0"?>
 <scan:ScanJob xmlns:scan="http://www.hp.com/schemas/imaging/con/cnx/scan/2008/08/19" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:fw="http://www.hp.com/schemas/imaging/con/firewall/2011/01/05">
@@ -179,50 +177,56 @@ scan = HpScan(
     host="Printer.fios-router.home",
     port=80)
 
-filename_entry = None
-
-def get_filename():
-    fn = filename_entry.get()
-    if not fn:
-        fn = time.strftime("%Y%m%d-%H%M%S")
-    fn = os.path.join(scanToDir, fn + ".jpg")
-    if os.path.exists(fn):
-        raise Exception("File already exists: " + fn)
-    return fn
+scanToDir = os.getcwd()
 
 class Callback:
-    def __init__(self, size):
+    def __init__(self, size, ent):
         self.size = size
+        self.ent = ent
     def fn(self):
         dims = self.size.split("x")
         width = int(float(dims[0]) * 300)
         height = int(float(dims[1]) * 300)
-        scan.do_scan(width, height, get_filename())
+
+        filename = self.ent.get()
+        if not filename:
+            filename = time.strftime("%Y%m%d-%H%M%S")
+        filename = os.path.join(scanToDir, filename + ".jpg")
+        if os.path.exists(filename):
+            raise Exception("File already exists: " + filename)
+
+        scan.do_scan(width, height, filename)
 
 def runGraphical():
-    global filename_entry
     root = tk.Tk()
     root.title("Scan")
 
-    tk.Label(root, text="Filename:").grid(row=0, column=0, sticky=tk.E, padx=5, pady=5)
-    filename_entry = tk.Entry(root, width=12)
-    filename_entry.grid(row=0, column=1, columnspan=2, sticky=tk.W, padx=5, pady=5)
+    row = 0
+    tk.Label(root, text="Filename:").grid(row=row, column=0, sticky=tk.E, padx=5, pady=5)
+    ent = tk.Entry(root, width=12)
+    ent.grid(row=row, column=1, columnspan=2, sticky=tk.W, padx=5, pady=5)
+    row += 1
 
-    tk.Label(root, text="Landscape:").grid(row=1, column=0, sticky=tk.E, padx=5, pady=5)
-    tk.Label(root, text="Portrait:").grid(row=2, column=0, sticky=tk.E, padx=5, pady=5)
-    tk.Label(root, text="Custom size:").grid(row=3, column=0, sticky=tk.E, padx=5, pady=5)
+    for label, sizes in [
+        ("Portrait:", ["3.5 x 5", "4 x 6", "5 x 7"]),
+        ("Landscape:", ["5 x 3.5", "6 x 4", "7 x 5"])]:
+        col = 0
+        tk.Label(root, text=label).grid(row=row, column=col, sticky=tk.E, padx=5, pady=5)
+        col += 1
+        for size in sizes:
+            tk.Button(root, text=size, command=Callback(size, ent).fn).grid(row=row, column=col, padx=5, pady=5)
+            col += 1
+        row += 1
 
-    for row, sizes in enumerate([
-        ["5 x 3.5", "6 x 4", "7 x 5"],
-        ["3.5 x 5", "4 x 6", "5 x 7"]]):
-        for col, size in enumerate(sizes):
-            tk.Button(root, text=size, command=Callback(size).fn).grid(row=row+1, column=col+1, padx=5, pady=5)
+    tk.Label(root, text="Custom size:").grid(row=row, column=0, sticky=tk.E, padx=5, pady=5)
+
     custom = tk.Entry(root, width=8)
     custom.insert(0, "2 x 3")
-    custom.grid(row=3, column=1, padx=5, pady=5)
-    tk.Button(root, text="Scan", command=lambda: Callback(custom.get()).fn()).grid(row=3, column=2, padx=5, pady=5)
+    custom.grid(row=row, column=1, padx=5, pady=5)
+    tk.Button(root, text="Scan", command=lambda: Callback(custom.get(), ent).fn()).grid(row=row, column=2, padx=5, pady=5)
+    row += 1
 
-    tk.Button(root, text='Quit', command=root.quit).grid(row=4, column=0, padx=5, pady=5)
+    tk.Button(root, text='Quit', command=root.quit).grid(row=row, column=0, padx=5, pady=5)
 
     root.mainloop()
 
