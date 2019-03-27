@@ -57,14 +57,14 @@ class HpScan:
             xml_document = xml.dom.minidom.parseString(http_response.read())
             return xml_document.getElementsByTagName("ScannerState")[0].firstChild.data
 
-    def _post_scan_job(self, width, height):
+    def _post_scan_job(self, width, height, resolution):
         #print("POST", "/Scan/Jobs")
         self._http_conn.request("POST",
                                 "/Scan/Jobs",
                                 headers={ "Content-Type" : "text/xml" },
                                 body=self._SCAN_REQUEST.format(
-                                    XResolution=RESOLUTION,
-                                    YResolution=RESOLUTION,
+                                    XResolution=resolution,
+                                    YResolution=resolution,
                                     XStart=0,
                                     YStart=0,
                                     Width=width,
@@ -105,8 +105,8 @@ class HpScan:
             with open(filename, "wb") as f:
                 f.write(http_response.read())
 
-    def do_scan(self, width, height, filename):
-        print("Scanning:", width, height, filename)
+    def do_scan(self, width, height, resolution, filename):
+        print("Scanning:", width, height, resolution, filename)
 
         # Wait for our scanner to become idle
         print("Waiting for scanner to become ready...")
@@ -118,7 +118,7 @@ class HpScan:
             time.sleep(5)
 
         print("Scanning...")
-        job_url = self._post_scan_job(width, height)
+        job_url = self._post_scan_job(width, height, resolution)
         #print("job_url", job_url)
         self._job_url = job_url # in case we want to query or cancel it later
 
@@ -185,8 +185,8 @@ class Callback:
         self.ent = ent
     def fn(self):
         dims = self.size.split("x")
-        width = int(float(dims[0]) * 300)
-        height = int(float(dims[1]) * 300)
+        width = int(float(dims[0]) * RESOLUTION)
+        height = int(float(dims[1]) * RESOLUTION)
 
         filename = self.ent.get()
         if not filename:
@@ -195,7 +195,7 @@ class Callback:
         if os.path.exists(filename):
             raise Exception("File already exists: " + filename)
 
-        scan.do_scan(width, height, filename)
+        scan.do_scan(width, height, RESOLUTION, filename)
 
 def runGraphical():
     root = tk.Tk()
