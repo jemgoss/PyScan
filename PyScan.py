@@ -158,7 +158,7 @@ class HpScan:
                 #print("Job state:", state, ", PageState:", pageState)
                 if state == "Canceled" or state == "Completed":
                     break
-                time.sleep(5)
+                time.sleep(1)
             print("Done")
 
     def cancel_scan(self):
